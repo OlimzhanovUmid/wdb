@@ -149,4 +149,7 @@ tasks.test {
     dependsOn(":wdb-dummy-app:jar")
     systemProperty("wdb.dummyJar", dummyJar.get().asFile.absolutePath)
     systemProperty("junit.jupiter.execution.timeout.default", "90s")
+    // Opt-in flag for launch-based integration tests (skipped in CI to avoid port/timing flakes).
+    // Forward the Gradle-daemon -D into the forked test JVM: `./gradlew :wdb-agent:test -Dwdb.integrationTests=true`.
+    System.getProperty("wdb.integrationTests")?.let { systemProperty("wdb.integrationTests", it) }
 }
