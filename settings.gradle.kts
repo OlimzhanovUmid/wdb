@@ -20,4 +20,6 @@ dependencyResolutionManagement {
     }
 }
 
-include()
+include(
+    "wdb-protocol",
+)
