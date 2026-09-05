@@ -108,6 +108,13 @@ private fun ActionRow(project: Project, service: WdbService, targets: List<Machi
         ActionIcon("Reload", AllIconsKeys.Actions.BuildLoadChanges, enabled && anyHot) { service.reload(targets) }
         ActionIcon("Stop", AllIconsKeys.Actions.Suspend, enabled && anyRunning) { service.stop(targets) }
         ActionIcon("Rollback", AllIconsKeys.Actions.Rollback, enabled && anyPrev) { service.rollback(targets) }
+        // Agent update from the published release (change agent-github-pull): enabled only when a
+        // strictly newer agent is available; acts on this machine, or all machines that need it.
+        val anyUpdate = single?.let { service.agentUpdateAvailable(it) } ?: targets.any { service.agentUpdateAvailable(it) }
+        ActionIcon("Update agent", AllIconsKeys.Actions.Download, enabled && anyUpdate) {
+            val victims = if (single != null) listOf(single) else targets.filter { service.agentUpdateAvailable(it) }
+            service.updateAgent(victims)
+        }
         if (single != null) {
             ActionIcon("Bring to front", AllIconsKeys.General.ArrowUp, single.appState == "RUNNING") { service.bringToFront(listOf(single)) }
             ActionIcon("Debug", AllIconsKeys.Actions.StartDebugger, single.appState == "RUNNING") { service.debug(single) }
@@ -139,6 +146,7 @@ fun WallUi(service: WdbService, project: Project) {
     val busy by service.busy.collectAsState()
     val deployProgress by service.deployProgress.collectAsState()
     val deployInfo by service.deployInfo.collectAsState()
+    val agentRelease by service.agentRelease.collectAsState()
     val dim = JewelTheme.globalColors.text.info
 
     Column(Modifier.fillMaxSize().padding(8.dp)) {
@@ -187,7 +195,13 @@ fun WallUi(service: WdbService, project: Project) {
                             }
                             StatusDot(m.appState, m.hot)
                             Spacer(Modifier.width(10.dp))
-                            Text(m.agentVersion, color = dim)
+                            // Flag an available agent update inline: "0.2.14 → 0.2.15" in amber.
+                            val newAgent = if (service.agentUpdateAvailable(m)) agentRelease?.version else null
+                            if (newAgent != null) {
+                                Text("${m.agentVersion} → $newAgent", color = HotAmber, fontWeight = FontWeight.Medium)
+                            } else {
+                                Text(m.agentVersion, color = dim)
+                            }
                         }
                         val prog = deployProgress[m.id]
                         if (prog != null) {

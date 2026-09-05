@@ -38,6 +38,8 @@ import javax.swing.JLabel
 import javax.swing.JPanel
 import uz.disastrouspumpkin.wdb.client.AgentAddress
 import uz.disastrouspumpkin.wdb.client.ClassDiff
+import uz.disastrouspumpkin.wdb.client.ComponentRelease
+import uz.disastrouspumpkin.wdb.client.isNewerVersion
 import uz.disastrouspumpkin.wdb.client.ClassSnapshot
 import uz.disastrouspumpkin.wdb.client.ReloadReport
 import uz.disastrouspumpkin.wdb.client.WdbClient
@@ -162,6 +164,14 @@ class WdbService(private val project: Project, private val cs: CoroutineScope) :
     private val _machines = MutableStateFlow<List<MachineUi>>(emptyList())
     val machines: StateFlow<List<MachineUi>> = _machines.asStateFlow()
 
+    /** Latest published agent release (from the release manifest), or null if unreachable/no release. */
+    private val _agentRelease = MutableStateFlow<ComponentRelease?>(null)
+    val agentRelease: StateFlow<ComponentRelease?> = _agentRelease.asStateFlow()
+
+    /** True when the release manifest advertises a strictly newer agent than [m] is running. */
+    fun agentUpdateAvailable(m: MachineUi): Boolean =
+        _agentRelease.value?.let { isNewerVersion(m.agentVersion, it.version) } ?: false
+
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
@@ -276,9 +286,50 @@ class WdbService(private val project: Project, private val cs: CoroutineScope) :
                     }
                 }.awaitAll().sortedBy { it.name }
                 _machines.value = uis
+                // Refresh the published agent version so the UI can flag machines with an update
+                // available. Best-effort: offline / no release just leaves it null (no indication).
+                _agentRelease.value = withContext(Dispatchers.IO) {
+                    runCatching { ReleaseSource.latestManifest()?.get("agent") }.getOrNull()
+                }
             } finally {
                 _busy.value = false
             }
+        }
+    }
+
+    /**
+     * Update the agent on [sel] from the published release (change agent-github-pull): download the
+     * manifest's agent installer once (verified against sha256+size), then push it to each machine
+     * over the existing agent-update wire. Per-machine outcome; one failure never aborts the rest.
+     */
+    fun updateAgent(sel: List<MachineUi>) {
+        if (sel.isEmpty()) return
+        val release = _agentRelease.value
+        if (release == null) {
+            notify("No agent release info — refresh, or check network/releases", NotificationType.WARNING)
+            return
+        }
+        cs.launch {
+            val zip = try {
+                withContext(Dispatchers.IO) { ReleaseSource.downloadVerified(release) }
+            } catch (e: Throwable) {
+                notify("Agent update download failed — ${e.message}", NotificationType.ERROR)
+                return@launch
+            }
+            for (m in sel) {
+                runCatching {
+                    client.agentUpdate(m.name, zip, release.version, m.address) { sent, total ->
+                        if (total > 0) setDeployProgress(m.id, sent.toFloat() / total)
+                    }
+                }.onSuccess { r ->
+                    if (r.ok) notify("${m.name}: agent updating to ${release.version} (restarting)", NotificationType.INFORMATION)
+                    else notify("${m.name}: agent update rejected — ${r.error?.message ?: "unknown"}", NotificationType.ERROR)
+                }.onFailure {
+                    notify("${m.name}: agent update failed — ${it.message}", NotificationType.ERROR)
+                }
+                clearDeployProgress(m.id)
+            }
+            refresh()
         }
     }
 
