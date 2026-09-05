@@ -25,4 +25,5 @@ include(
     "wdb-client",
     "wdb-agent",
     "wdb-cli",
+    "wdb-mcp",
 )
