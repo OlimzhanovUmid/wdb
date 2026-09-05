@@ -35,6 +35,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.project.Project
+import uz.disastrouspumpkin.wdb.client.ComponentRelease
+import uz.disastrouspumpkin.wdb.client.isNewerVersion
 import org.jetbrains.jewel.bridge.retrieveEditorColorScheme
 import org.jetbrains.jewel.bridge.toComposeColor
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -89,8 +91,11 @@ private fun StatusDot(appState: String, hot: Boolean) {
 
 /** The per-machine / per-all action icons (design D7/D8). [single] non-null = act on that one machine. */
 @Composable
-private fun ActionRow(project: Project, service: WdbService, targets: List<MachineUi>, single: MachineUi?) {
+private fun ActionRow(project: Project, service: WdbService, targets: List<MachineUi>, single: MachineUi?, agentRelease: ComponentRelease?) {
     val enabled = targets.isNotEmpty()
+    // Derive update-availability from the passed-in (observed) manifest so the row recomposes when
+    // it arrives after the machine list — a raw StateFlow.value read here would leave the button stale.
+    fun updatable(m: MachineUi) = agentRelease != null && isNewerVersion(m.agentVersion, agentRelease.version)
     // State gates: per-machine row uses that machine; all-machines row aggregates with `any`.
     val running = single?.let { it.appState == "RUNNING" } ?: (enabled && targets.all { it.appState == "RUNNING" })
     val anyRunning = single?.let { it.appState == "RUNNING" } ?: targets.any { it.appState == "RUNNING" }
@@ -110,9 +115,9 @@ private fun ActionRow(project: Project, service: WdbService, targets: List<Machi
         ActionIcon("Rollback", AllIconsKeys.Actions.Rollback, enabled && anyPrev) { service.rollback(targets) }
         // Agent update from the published release (change agent-github-pull): enabled only when a
         // strictly newer agent is available; acts on this machine, or all machines that need it.
-        val anyUpdate = single?.let { service.agentUpdateAvailable(it) } ?: targets.any { service.agentUpdateAvailable(it) }
+        val anyUpdate = single?.let { updatable(it) } ?: targets.any { updatable(it) }
         ActionIcon("Update agent", AllIconsKeys.Actions.Download, enabled && anyUpdate) {
-            val victims = if (single != null) listOf(single) else targets.filter { service.agentUpdateAvailable(it) }
+            val victims = if (single != null) listOf(single) else targets.filter { updatable(it) }
             service.updateAgent(victims)
         }
         if (single != null) {
@@ -173,7 +178,7 @@ fun WallUi(service: WdbService, project: Project) {
             Divider(Orientation.Horizontal, Modifier.fillMaxWidth().padding(vertical = 6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("all", color = dim, modifier = Modifier.width(28.dp))
-                ActionRow(project, service, targets = machines, single = null)
+                ActionRow(project, service, targets = machines, single = null, agentRelease = agentRelease)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -196,7 +201,7 @@ fun WallUi(service: WdbService, project: Project) {
                             StatusDot(m.appState, m.hot)
                             Spacer(Modifier.width(10.dp))
                             // Flag an available agent update inline: "0.2.14 → 0.2.15" in amber.
-                            val newAgent = if (service.agentUpdateAvailable(m)) agentRelease?.version else null
+                            val newAgent = agentRelease?.takeIf { isNewerVersion(m.agentVersion, it.version) }?.version
                             if (newAgent != null) {
                                 Text("${m.agentVersion} → $newAgent", color = HotAmber, fontWeight = FontWeight.Medium)
                             } else {
@@ -212,7 +217,7 @@ fun WallUi(service: WdbService, project: Project) {
                             }
                         }
                         Divider(Orientation.Horizontal, Modifier.fillMaxWidth().padding(vertical = 6.dp))
-                        ActionRow(project, service, targets = listOf(m), single = m)
+                        ActionRow(project, service, targets = listOf(m), single = m, agentRelease = agentRelease)
                     }
                 }
             }

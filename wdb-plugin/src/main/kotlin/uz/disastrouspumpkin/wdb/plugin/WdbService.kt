@@ -310,9 +310,17 @@ class WdbService(private val project: Project, private val cs: CoroutineScope) :
             return
         }
         cs.launch {
+            notify("Downloading agent ${release.version} (${release.size / 1_000_000} MB)…", NotificationType.INFORMATION)
             val zip = try {
-                withContext(Dispatchers.IO) { ReleaseSource.downloadVerified(release) }
+                withContext(Dispatchers.IO) {
+                    // Show the download on every selected row (it's the long part); the per-machine
+                    // push below then overwrites each row with its own send progress.
+                    ReleaseSource.downloadVerified(release) { got, total ->
+                        if (total > 0) { val f = got.toFloat() / total; for (m in sel) setDeployProgress(m.id, f) }
+                    }
+                }
             } catch (e: Throwable) {
+                sel.forEach { clearDeployProgress(it.id) }
                 notify("Agent update download failed — ${e.message}", NotificationType.ERROR)
                 return@launch
             }
