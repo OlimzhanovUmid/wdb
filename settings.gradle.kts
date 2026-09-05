@@ -26,4 +26,5 @@ include(
     "wdb-agent",
     "wdb-cli",
     "wdb-mcp",
+    "wdb-dummy-app",
 )
