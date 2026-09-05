@@ -1,4 +1,4 @@
-rootProject.name = "windows-debug-bridge"
+rootProject.name = "wdb"
 
 pluginManagement {
     repositories {
