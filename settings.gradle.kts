@@ -23,4 +23,5 @@ dependencyResolutionManagement {
 include(
     "wdb-protocol",
     "wdb-client",
+    "wdb-agent",
 )
