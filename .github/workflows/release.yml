@@ -18,7 +18,7 @@ jobs:
     # artifact (cli/mcp distZip, plugin buildPlugin) builds fine here — so no cross-job hand-off.
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Derive version from tag
         id: ver
@@ -28,7 +28,7 @@ jobs:
       # JetBrains Runtime 21 — used both as the Gradle JDK and as jpackage's runtime image
       # for the agent app-image (packageAgent takes -PjbrHome).
       - name: Set up JBR 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: jetbrains
           java-version: '21'
