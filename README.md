@@ -1,5 +1,8 @@
 # wdb
 
+[![CI](https://github.com/OlimzhanovUmid/wdb/actions/workflows/ci.yml/badge.svg)](https://github.com/OlimzhanovUmid/wdb/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 **A debug bridge for [Compose Desktop](https://www.jetbrains.com/lp/compose-multiplatform/) (JVM) apps — ADB, but for a LAN of desktop machines.**
 
 wdb deploys, runs, **hot-reloads**, inspects, and debugs Compose Desktop apps on remote
@@ -113,6 +116,11 @@ Run `wdb --help` or `wdb <command> --help` for all options.
 
 Releases are cut by pushing a `v*` tag; CI builds all artifacts and publishes them (see
 [`.github/workflows/release.yml`](.github/workflows/release.yml)).
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the build, the OpenSpec
+change workflow, code/commit style, and how to run the tests.
 
 ## Support
 
