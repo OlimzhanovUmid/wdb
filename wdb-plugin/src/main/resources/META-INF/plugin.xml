@@ -1,0 +1,32 @@
+<idea-plugin>
+    <id>uz.disastrouspumpkin.wdb.plugin</id>
+    <name>wdb — Windows Debug Bridge</name>
+    <vendor>wdb</vendor>
+    <description><![CDATA[
+        Drive a LAN "demo wall" of machines from the IDE: discover agents, deploy, run/hot-run,
+        stream logs, and attach the JVM debugger — one click, no terminal.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <!-- Runtime classloader parents: these bundled modules must be declared here (not just in
+         Gradle bundledModule) or the plugin classloader can't see Jewel/Compose at runtime
+         (NoClassDefFoundError androidx.compose.*). -->
+    <dependencies>
+        <plugin id="com.intellij.java"/>
+        <plugin id="com.intellij.gradle"/>
+        <module name="intellij.platform.jewel.foundation"/>
+        <module name="intellij.platform.jewel.ui"/>
+        <module name="intellij.platform.jewel.ideLafBridge"/>
+        <module name="intellij.libraries.compose.foundation.desktop"/>
+        <module name="intellij.libraries.compose.runtime.desktop"/>
+        <module name="intellij.libraries.skiko"/>
+    </dependencies>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="wdb" anchor="right" icon="/icons/wdb.svg" factoryClass="uz.disastrouspumpkin.wdb.plugin.WdbToolWindowFactory"/>
+        <toolWindow id="wdb-logs" anchor="bottom" icon="AllIcons.Debugger.Console" factoryClass="uz.disastrouspumpkin.wdb.plugin.WdbLogsToolWindowFactory"/>
+        <toolWindow id="wdb-mirror" anchor="right" icon="AllIcons.Actions.Preview" factoryClass="uz.disastrouspumpkin.wdb.plugin.WdbMirrorToolWindowFactory"/>
+        <notificationGroup id="wdb" displayType="BALLOON"/>
+    </extensions>
+</idea-plugin>

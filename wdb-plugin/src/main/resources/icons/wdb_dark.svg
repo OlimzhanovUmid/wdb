@@ -1,0 +1,6 @@
+<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- bridge (dark-theme variant) -->
+  <path d="M3 8.5 C 4.7 5, 8.3 5, 10 8.5" stroke="#CED0D6" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+  <circle cx="3" cy="8.5" r="1.5" fill="#CED0D6"/>
+  <circle cx="10" cy="8.5" r="1.5" fill="#CED0D6"/>
+</svg>

@@ -1,0 +1,6 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- wdb = bridge: a span arcing between two nodes (dev <-> wall) -->
+  <path d="M9 27 C 15 12, 25 12, 31 27" stroke="#3574F0" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+  <circle cx="9" cy="27" r="3.8" fill="#3574F0"/>
+  <circle cx="31" cy="27" r="3.8" fill="#3574F0"/>
+</svg>

@@ -1,0 +1,6 @@
+<svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- bridge: span arcing between two nodes; monochrome for tool-window theming -->
+  <path d="M3 8.5 C 4.7 5, 8.3 5, 10 8.5" stroke="#6C707E" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+  <circle cx="3" cy="8.5" r="1.5" fill="#6C707E"/>
+  <circle cx="10" cy="8.5" r="1.5" fill="#6C707E"/>
+</svg>
