@@ -1,0 +1,90 @@
+name: Release
+
+# Cut a release by pushing a tag: `git tag v1.2.3 && git push origin v1.2.3`.
+# Builds every artifact, generates the manifest + plugin-repo index, and publishes one
+# GitHub Release. Consumers read the two index files at the stable
+# https://github.com/<repo>/releases/latest/download/{latest.json,updatePlugins.xml} URLs.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # create the release and upload assets
+
+jobs:
+  release:
+    # Single Windows job: the agent's jpackage app-image is Windows-only, and every other
+    # artifact (cli/mcp distZip, plugin buildPlugin) builds fine here — so no cross-job hand-off.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: ver
+        shell: bash
+        run: echo "wdb=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # JetBrains Runtime 21 — used both as the Gradle JDK and as jpackage's runtime image
+      # for the agent app-image (packageAgent takes -PjbrHome).
+      - name: Set up JBR 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: jetbrains
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build release artifacts
+        shell: bash
+        run: |
+          ./gradlew --no-daemon --console=plain --stacktrace \
+            -PwdbVersion="${{ steps.ver.outputs.wdb }}" \
+            :wdb-agent:packageAgentInstaller -PjbrHome="$JAVA_HOME" \
+            :wdb-cli:distZip \
+            :wdb-mcp:distZip \
+            :wdb-plugin:buildPlugin
+
+      # Smoke-check what can run non-interactively. The CLI has --help (exits 0); the MCP server
+      # and agent block on stdio/sockets, so for those we assert the archive was produced.
+      - name: Smoke-check artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          V="${{ steps.ver.outputs.wdb }}"
+          for f in \
+            "wdb-cli/build/distributions/wdb-cli-$V.zip" \
+            "wdb-mcp/build/distributions/wdb-mcp-$V.zip" \
+            "wdb-plugin/build/distributions/wdb-plugin-$V.zip" \
+            wdb-agent/build/dist/wdb-agent-installer-*.zip; do
+            ls -l $f
+          done
+          unzip -q "wdb-cli/build/distributions/wdb-cli-$V.zip" -d _clicheck
+          cmd //c "_clicheck\\wdb-cli-$V\\bin\\wdb.bat" --help
+          rm -rf _clicheck
+
+      - name: Stage assets + generate manifest and plugin-repo index
+        shell: pwsh
+        run: |
+          ./scripts/gen-release-manifest.ps1 `
+            -Repo "${{ github.repository }}" `
+            -WdbVersion "${{ steps.ver.outputs.wdb }}" `
+            -OutDir release-staging
+
+      # Non-draft, non-prerelease so `releases/latest` (and thus the stable download URLs) point
+      # here. Idempotent: re-running the tag updates the existing release's assets.
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release-staging/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release-staging/* \
+              --title "$GITHUB_REF_NAME" \
+              --notes "Automated release of wdb ${{ steps.ver.outputs.wdb }}." \
+              --verify-tag
+          fi
