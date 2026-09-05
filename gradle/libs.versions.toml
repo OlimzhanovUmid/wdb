@@ -1,0 +1,35 @@
+[versions]
+kotlin = "2.3.20"
+coroutines = "1.9.0"
+serialization = "1.7.3"
+clikt = "4.4.0"
+jna = "5.15.0"
+compose = "1.12.0"
+composeHotReload = "1.3.0-alpha01"
+intellijPlatform = "2.18.1"
+intellijIdea = "2026.1"
+buildconfig = "5.4.0"
+mcpSdk = "0.13.0"
+
+[libraries]
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+clikt = { module = "com.github.ajalt.clikt:clikt", version.ref = "clikt" }
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
+jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
+# Compose Hot Reload: agent module depends on orchestration + bundles the -javaagent jar.
+hot-reload-orchestration = { module = "org.jetbrains.compose.hot-reload:hot-reload-orchestration", version.ref = "composeHotReload" }
+hot-reload-core = { module = "org.jetbrains.compose.hot-reload:hot-reload-core", version.ref = "composeHotReload" }
+hot-reload-agent = { module = "org.jetbrains.compose.hot-reload:hot-reload-agent", version.ref = "composeHotReload" }
+hot-reload-runtime-jvm = { module = "org.jetbrains.compose.hot-reload:hot-reload-runtime-jvm", version.ref = "composeHotReload" }
+mcp-sdk-server = { module = "io.modelcontextprotocol:kotlin-sdk-server", version.ref = "mcpSdk" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+compose = { id = "org.jetbrains.compose", version.ref = "compose" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+compose-hot-reload = { id = "org.jetbrains.compose.hot-reload", version.ref = "composeHotReload" }
+intellij-platform = { id = "org.jetbrains.intellij.platform", version.ref = "intellijPlatform" }
+buildconfig = { id = "com.github.gmazzo.buildconfig", version.ref = "buildconfig" }
