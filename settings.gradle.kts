@@ -24,4 +24,5 @@ include(
     "wdb-protocol",
     "wdb-client",
     "wdb-agent",
+    "wdb-cli",
 )
