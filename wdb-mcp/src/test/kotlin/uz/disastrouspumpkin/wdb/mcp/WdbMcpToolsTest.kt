@@ -1,6 +1,7 @@
 package uz.disastrouspumpkin.wdb.mcp
 
 import uz.disastrouspumpkin.wdb.client.AgentAddress
+import uz.disastrouspumpkin.wdb.client.ComponentRelease
 import uz.disastrouspumpkin.wdb.client.Machine
 import uz.disastrouspumpkin.wdb.client.WdbClient
 import uz.disastrouspumpkin.wdb.protocol.AppState
@@ -26,6 +27,7 @@ import uz.disastrouspumpkin.wdb.protocol.StreamKind
 import uz.disastrouspumpkin.wdb.protocol.UiActionKind
 import uz.disastrouspumpkin.wdb.protocol.UiActionRequest
 import uz.disastrouspumpkin.wdb.protocol.UiActionResponse
+import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.ImageContent
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import kotlinx.coroutines.isActive
@@ -168,6 +170,65 @@ class WdbMcpToolsTest {
     fun status_unreachable_is_error() = runBlocking {
         val result = toolStatus(WdbClient(this), "gone", AgentAddress("127.0.0.1", 1)) // nothing listening
         assertEquals(true, result.isError)
+    }
+
+    // --- restart / rollback / agent_update (add-mcp-lifecycle-tools) ---
+
+    private fun body(r: CallToolResult) = (r.content.single() as TextContent).text
+    private fun agentRelease(version: String) =
+        ComponentRelease(version, "wdb-agent-installer-$version.zip", "https://x/$version.zip", "deadbeef", 123L)
+
+    @Test
+    fun restart_ok() = runBlocking {
+        FakeAgent().use { fake ->
+            val r = toolRestart(WdbClient(this), "m", fake.address)
+            assertFalse(r.isError == true)
+            assertTrue("restarted" in body(r))
+        }
+    }
+
+    @Test
+    fun rollback_ok() = runBlocking {
+        FakeAgent().use { fake ->
+            val r = toolRollback(WdbClient(this), "m", fake.address)
+            assertFalse(r.isError == true)
+            assertTrue("rolled back" in body(r))
+        }
+    }
+
+    @Test
+    fun agent_update_already_current_is_noop() = runBlocking {
+        FakeAgent(controlHandler = { req -> if (req is StatusRequest) StatusResponse(status("m")) else OkResponse }).use { fake ->
+            var downloaded = false
+            val r = toolAgentUpdate(
+                WdbClient(this), "m", fake.address,
+                fetchLatestAgent = { agentRelease("0.2.8") }, // == status agentVersion → no push
+                download = { downloaded = true; error("must not download") },
+            )
+            assertFalse(r.isError == true)
+            assertTrue("up to date" in body(r))
+            assertFalse(downloaded)
+        }
+    }
+
+    @Test
+    fun agent_update_manifest_unreachable_is_error() = runBlocking {
+        val r = toolAgentUpdate(WdbClient(this), "m", AgentAddress("127.0.0.1", 1), fetchLatestAgent = { null })
+        assertEquals(true, r.isError)
+        assertTrue("unreachable" in body(r))
+    }
+
+    @Test
+    fun agent_update_download_integrity_failure_is_error() = runBlocking {
+        FakeAgent(controlHandler = { req -> if (req is StatusRequest) StatusResponse(status("m")) else OkResponse }).use { fake ->
+            val r = toolAgentUpdate(
+                WdbClient(this), "m", fake.address,
+                fetchLatestAgent = { agentRelease("0.2.16") }, // newer → proceeds to download
+                download = { throw ReleaseFetch.IntegrityException("bad hash") },
+            )
+            assertEquals(true, r.isError)
+            assertTrue("download failed" in body(r))
+        }
     }
 
     @Test

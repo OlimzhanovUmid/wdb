@@ -2,7 +2,9 @@ package uz.disastrouspumpkin.wdb.mcp
 
 import uz.disastrouspumpkin.wdb.client.AgentAddress
 import uz.disastrouspumpkin.wdb.client.ClassDiff
+import uz.disastrouspumpkin.wdb.client.ComponentRelease
 import uz.disastrouspumpkin.wdb.client.WdbClient
+import uz.disastrouspumpkin.wdb.client.isNewerVersion
 import uz.disastrouspumpkin.wdb.client.reloadOrRedeploy
 import uz.disastrouspumpkin.wdb.protocol.LogLine
 import uz.disastrouspumpkin.wdb.protocol.UiActionKind
@@ -183,6 +185,45 @@ internal suspend fun toolDeploy(
     else text("$notes$machine: deploy failed — ${r.error?.message}", isError = true)
 }
 
+internal suspend fun toolRestart(client: WdbClient, machine: String, host: AgentAddress? = null): CallToolResult =
+    runCatching { client.restart(machine, host) }.fold({ text("$machine: restarted") }, { text("$machine: ${it.message}", isError = true) })
+
+internal suspend fun toolRollback(client: WdbClient, machine: String, host: AgentAddress? = null): CallToolResult =
+    runCatching { client.rollback(machine, host) }.fold({ text("$machine: rolled back") }, { text("$machine: ${it.message}", isError = true) })
+
+/**
+ * Update a machine's agent to the latest published release (add-mcp-lifecycle-tools). Pull the
+ * agent entry from the release manifest, compare against the machine's running version, and — only
+ * if strictly newer — download + verify the installer and push it over the existing agent-update
+ * wire. Idempotent (equal version = no push). Network is injected so the decision logic is testable.
+ */
+internal suspend fun toolAgentUpdate(
+    client: WdbClient,
+    machine: String,
+    host: AgentAddress? = null,
+    fetchLatestAgent: () -> ComponentRelease? = { ReleaseFetch.latestAgent() },
+    download: (ComponentRelease) -> Path = { ReleaseFetch.downloadVerified(it) },
+): CallToolResult {
+    val latest = fetchLatestAgent() ?: return text("agent release manifest unreachable", isError = true)
+    val st = runCatching { client.status(machine, host) }.getOrNull()
+        ?: return text("cannot reach $machine", isError = true)
+    if (!isNewerVersion(st.agentVersion, latest.version)) {
+        return text("$machine: agent already up to date (${st.agentVersion}; latest ${latest.version})")
+    }
+    val zip = try {
+        download(latest)
+    } catch (e: Throwable) {
+        return text("$machine: agent update download failed — ${e.message}", isError = true)
+    }
+    try {
+        val r = client.agentUpdate(machine, zip, latest.version, host)
+        return if (r.ok) text("$machine: agent updating to ${latest.version} (restarting)")
+        else text("$machine: agent update rejected — ${r.error?.message ?: "unknown"}", isError = true)
+    } finally {
+        runCatching { Files.deleteIfExists(zip) }
+    }
+}
+
 // --- registration ------------------------------------------------------------
 
 private fun registerTools(server: Server, client: WdbClient, cache: MachineCache, collectors: LogCollectors) {
@@ -242,6 +283,21 @@ private fun registerTools(server: Server, client: WdbClient, cache: MachineCache
         val m = req.str("machine") ?: return@addTool text("machine required", isError = true)
         val host = cache.resolve(m) ?: return@addTool text("machine not found: $m", isError = true)
         runCatching { client.bringToFront(m, host) }.fold({ text("$m: brought to front") }, { text("$m: ${it.message}", isError = true) })
+    }
+    server.addTool(Tool(name = "restart", description = "Restart the app on a machine.", inputSchema = objSchema(machineArg, listOf("machine")))) { req ->
+        val m = req.str("machine") ?: return@addTool text("machine required", isError = true)
+        val host = cache.resolve(m) ?: return@addTool text("machine not found: $m", isError = true)
+        toolRestart(client, m, host)
+    }
+    server.addTool(Tool(name = "rollback", description = "Roll a machine back to its previous deployment.", inputSchema = objSchema(machineArg, listOf("machine")))) { req ->
+        val m = req.str("machine") ?: return@addTool text("machine required", isError = true)
+        val host = cache.resolve(m) ?: return@addTool text("machine not found: $m", isError = true)
+        toolRollback(client, m, host)
+    }
+    server.addTool(Tool(name = "agent_update", description = "Update a machine's agent to the latest published release (pull, verify, push). No-op if already current.", inputSchema = objSchema(machineArg, listOf("machine")))) { req ->
+        val m = req.str("machine") ?: return@addTool text("machine required", isError = true)
+        val host = cache.resolve(m) ?: return@addTool text("machine not found: $m", isError = true)
+        toolAgentUpdate(client, m, host)
     }
     server.addTool(
         Tool(
