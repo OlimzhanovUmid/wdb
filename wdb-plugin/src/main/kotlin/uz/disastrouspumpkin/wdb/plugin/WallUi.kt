@@ -172,6 +172,7 @@ fun WallUi(service: WdbService, project: Project) {
                     },
                 )
                 Spacer(Modifier.width(8.dp))
+                ActionIcon("Install wdb MCP server", AllIconsKeys.Nodes.Plugin) { service.installMcp() }
                 ActionIcon("Refresh", AllIconsKeys.Actions.Refresh, !busy) { service.refresh() }
                 ActionIcon("Configure deploy…", AllIconsKeys.General.Settings) { configureDeploy(project) }
             }

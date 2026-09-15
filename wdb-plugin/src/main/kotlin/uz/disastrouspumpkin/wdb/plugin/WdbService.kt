@@ -264,6 +264,34 @@ class WdbService(private val project: Project, private val cs: CoroutineScope) :
 
     fun client(): WdbClient = client
 
+    /**
+     * Download the published wdb MCP server, install it to ~/.wdb/mcp/, and register it with Claude
+     * Code (change add-plugin-mcp-install). Heavy work off-EDT; the method/warnings dialog on EDT.
+     */
+    fun installMcp() {
+        cs.launch {
+            val mcp = withContext(Dispatchers.IO) { ReleaseSource.latestManifest()?.get("mcp") }
+            if (mcp == null) {
+                notify("wdb MCP release not found — check network / releases", NotificationType.WARNING)
+                return@launch
+            }
+            notify("Downloading wdb MCP ${mcp.version} (${mcp.size / 1_000_000} MB)…", NotificationType.INFORMATION)
+            val launcher = try {
+                withContext(Dispatchers.IO) { McpInstall.unzipLauncher(ReleaseSource.downloadVerified(mcp)) }
+            } catch (e: Throwable) {
+                notify("wdb MCP download failed — ${e.message}", NotificationType.ERROR)
+                return@launch
+            }
+            when (withContext(Dispatchers.EDT) { McpInstall.register(project, launcher) }) {
+                McpInstall.Outcome.INSTALLED -> notify("wdb MCP installed — open a new Claude Code session to use it", NotificationType.INFORMATION)
+                McpInstall.Outcome.ALREADY -> notify("wdb MCP already registered", NotificationType.INFORMATION)
+                McpInstall.Outcome.FALLBACK -> notify("Config not written automatically — command copied to clipboard, ~/.claude.json opened", NotificationType.WARNING)
+                McpInstall.Outcome.CANCELLED -> {}
+                McpInstall.Outcome.FAILED -> notify("wdb MCP install failed", NotificationType.ERROR)
+            }
+        }
+    }
+
     /** Re-discover machines and enrich each with its live status; updates [machines]. */
     fun refresh() {
         cs.launch {
