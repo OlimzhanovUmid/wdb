@@ -13,10 +13,19 @@ fun main(args: Array<String>) {
         "install" -> {
             val name = flag(args, "--name") ?: hostname()
             val jdwpPort = flag(args, "--jdwp-port")?.toIntOrNull()
-            InstallManager().install(name, jdwpPort).forEach(::println)
+            installManager(args).install(name, jdwpPort).forEach(::println)
             println("installed as '$name'")
         }
-        "uninstall" -> InstallManager().uninstall().forEach(::println)
+        "finalize" -> {
+            // Installer path: the app-image is already at <base>/agent/versions/<ver>/; just wire it up.
+            val base = flag(args, "--base")?.let { java.nio.file.Path.of(it) }
+                ?: error("finalize requires --base <install-dir>")
+            val name = flag(args, "--name") ?: hostname()
+            val jdwpPort = flag(args, "--jdwp-port")?.toIntOrNull()
+            installManager(args).finalize(base, name, jdwpPort).forEach(::println)
+            println("finalized as '$name'")
+        }
+        "uninstall" -> installManager(args).uninstall().forEach(::println)
         "--supervise-update" -> {
             // wdb-agent --supervise-update <base> <deadlineSeconds>
             superviseUpdate(java.nio.file.Path.of(args[1]), args[2].toLong())
@@ -89,6 +98,12 @@ private fun persistName(paths: AgentPaths, name: String) {
     runCatching { Files.writeString(paths.dataDir.resolve("machine-name"), name) }
 }
 
+/** Build an InstallManager honoring an optional `--user` (the kiosk logon-task/ACL user). */
+private fun installManager(args: Array<String>): InstallManager {
+    val user = flag(args, "--user")
+    return if (user != null) InstallManager(user = user) else InstallManager()
+}
+
 private fun flag(args: Array<String>, name: String): String? {
     val idx = args.indexOf(name)
     return if (idx >= 0 && idx + 1 < args.size) args[idx + 1] else null
@@ -105,7 +120,8 @@ private fun printUsage() {
 
         Usage:
           wdb-agent run [--name <machine>] [--port <tcp>] [--jdwp-port <n>] [--data-dir <dir>]
-          wdb-agent install [--name <machine>] [--jdwp-port <n>]   (elevated)
+          wdb-agent install [--name <machine>] [--jdwp-port <n>] [--user <kiosk-user>]   (elevated)
+          wdb-agent finalize --base <dir> [--name <machine>] [--jdwp-port <n>] [--user <kiosk-user>]   (installer, elevated)
           wdb-agent uninstall                       (elevated)
         """.trimIndent(),
     )
