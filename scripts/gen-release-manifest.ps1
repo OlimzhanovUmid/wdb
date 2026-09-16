@@ -35,12 +35,19 @@ $agentVersion = (Get-Content "$root/gradle.properties" |
     Select-String '^wdbAgentVersion=(.+)$').Matches.Groups[1].Value.Trim()
 if (-not $agentVersion) { throw "wdbAgentVersion not found in gradle.properties" }
 
+# The manifest's `agent` points at the RAW app-image zip (wdb-agent-<ver>.zip) — self-update extracts
+# it so wdb-agent.exe lands directly in versions/<ver>/. The wrapped installer zip
+# (wdb-agent-installer-<ver>.zip, + install-agent.ps1) is published too, for a first-time manual
+# install, but is NOT the self-update asset (its extra wdb-agent/ folder nests the exe too deep).
 $components = [ordered]@{
-    agent  = @{ path = "$root/wdb-agent/build/dist/wdb-agent-installer-$agentVersion.zip"; version = $agentVersion }
+    agent  = @{ path = "$root/wdb-agent/build/dist/wdb-agent-$agentVersion.zip";           version = $agentVersion }
     cli    = @{ path = "$root/wdb-cli/build/distributions/wdb-cli-$WdbVersion.zip";         version = $WdbVersion }
     mcp    = @{ path = "$root/wdb-mcp/build/distributions/wdb-mcp-$WdbVersion.zip";         version = $WdbVersion }
     plugin = @{ path = "$root/wdb-plugin/build/distributions/wdb-plugin-$WdbVersion.zip";   version = $WdbVersion }
 }
+
+# Extra assets published alongside (not in latest.json): the manual-install agent bundle.
+$extraAssets = @("$root/wdb-agent/build/dist/wdb-agent-installer-$agentVersion.zip")
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $base = "https://github.com/$Repo/releases/download/v$WdbVersion"
@@ -58,6 +65,11 @@ foreach ($name in $components.Keys) {
         sha256  = (Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
         size    = (Get-Item $path).Length
     }
+}
+
+# Stage extra published assets (not in latest.json).
+foreach ($extra in $extraAssets) {
+    if (Test-Path $extra) { Copy-Item $extra (Join-Path $OutDir (Split-Path $extra -Leaf)) -Force }
 }
 
 # UTF-8 without BOM regardless of PowerShell edition (5.1 vs 7) so consumers parse cleanly.

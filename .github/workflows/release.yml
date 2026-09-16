@@ -41,7 +41,7 @@ jobs:
         run: |
           ./gradlew --no-daemon --console=plain --stacktrace \
             -PwdbVersion="${{ steps.ver.outputs.wdb }}" \
-            :wdb-agent:packageAgentInstaller -PjbrHome="$JAVA_HOME" \
+            :wdb-agent:packageAgentInstaller :wdb-agent:packageAgentImage -PjbrHome="$JAVA_HOME" \
             :wdb-cli:distZip \
             :wdb-mcp:distZip \
             :wdb-plugin:buildPlugin

@@ -140,6 +140,20 @@ tasks.register<Zip>("packageAgentInstaller") {
     }
 }
 
+// Raw app-image zip for SELF-UPDATE: the app-image contents (wdb-agent.exe, app/, runtime/) at the
+// ZIP ROOT — so SelfUpdater.extract lands `wdb-agent.exe` directly in `versions/<ver>/`, where
+// launch.cmd runs it. Distinct from packageAgentInstaller, which wraps the image under a top-level
+// `wdb-agent/` folder (+ install-agent.ps1) for a first-time MANUAL install; that wrapper nests the
+// exe a level too deep for self-update (the launcher can't find it → new version never boots → revert).
+tasks.register<Zip>("packageAgentImage") {
+    group = "distribution"
+    description = "Zip the raw jpackage app-image (contents at root) for agent self-update"
+    dependsOn("packageAgent")
+    archiveFileName.set("wdb-agent-$agentVersion.zip")
+    destinationDirectory.set(layout.buildDirectory.dir("dist"))
+    from(layout.buildDirectory.dir("jpackage/wdb-agent"))
+}
+
 val dummyJar = project(":wdb-dummy-app").let {
     it.layout.buildDirectory.file("libs/wdb-dummy-app-${it.version}.jar")
 }
