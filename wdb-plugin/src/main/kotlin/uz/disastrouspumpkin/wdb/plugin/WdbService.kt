@@ -172,6 +172,10 @@ class WdbService(private val project: Project, private val cs: CoroutineScope) :
     fun agentUpdateAvailable(m: MachineUi): Boolean =
         _agentRelease.value?.let { isNewerVersion(m.agentVersion, it.version) } ?: false
 
+    /** Single-flight guard: an agent rollout is running. Concurrent pushes corrupt the self-update. */
+    private val _agentUpdating = MutableStateFlow(false)
+    val agentUpdating: StateFlow<Boolean> = _agentUpdating.asStateFlow()
+
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
@@ -337,35 +341,45 @@ class WdbService(private val project: Project, private val cs: CoroutineScope) :
             notify("No agent release info — refresh, or check network/releases", NotificationType.WARNING)
             return
         }
+        // Reject a concurrent rollout: two simultaneous pushes race the agent's self-update/restart
+        // (corrupts it → revert). One rollout at a time.
+        if (!_agentUpdating.compareAndSet(expect = false, update = true)) {
+            notify("Agent update already in progress", NotificationType.WARNING)
+            return
+        }
         cs.launch {
-            notify("Downloading agent ${release.version} (${release.size / 1_000_000} MB)…", NotificationType.INFORMATION)
-            val zip = try {
-                withContext(Dispatchers.IO) {
-                    // Show the download on every selected row (it's the long part); the per-machine
-                    // push below then overwrites each row with its own send progress.
-                    ReleaseSource.downloadVerified(release) { got, total ->
-                        if (total > 0) { val f = got.toFloat() / total; for (m in sel) setDeployProgress(m.id, f) }
+            try {
+                notify("Downloading agent ${release.version} (${release.size / 1_000_000} MB)…", NotificationType.INFORMATION)
+                val zip = try {
+                    withContext(Dispatchers.IO) {
+                        // Show the download on every selected row (it's the long part); the per-machine
+                        // push below then overwrites each row with its own send progress.
+                        ReleaseSource.downloadVerified(release) { got, total ->
+                            if (total > 0) { val f = got.toFloat() / total; for (m in sel) setDeployProgress(m.id, f) }
+                        }
                     }
+                } catch (e: Throwable) {
+                    sel.forEach { clearDeployProgress(it.id) }
+                    notify("Agent update download failed — ${e.message}", NotificationType.ERROR)
+                    return@launch
                 }
-            } catch (e: Throwable) {
-                sel.forEach { clearDeployProgress(it.id) }
-                notify("Agent update download failed — ${e.message}", NotificationType.ERROR)
-                return@launch
-            }
-            for (m in sel) {
-                runCatching {
-                    client.agentUpdate(m.name, zip, release.version, m.address) { sent, total ->
-                        if (total > 0) setDeployProgress(m.id, sent.toFloat() / total)
+                for (m in sel) {
+                    runCatching {
+                        client.agentUpdate(m.name, zip, release.version, m.address) { sent, total ->
+                            if (total > 0) setDeployProgress(m.id, sent.toFloat() / total)
+                        }
+                    }.onSuccess { r ->
+                        if (r.ok) notify("${m.name}: agent updating to ${release.version} (restarting)", NotificationType.INFORMATION)
+                        else notify("${m.name}: agent update rejected — ${r.error?.message ?: "unknown"}", NotificationType.ERROR)
+                    }.onFailure {
+                        notify("${m.name}: agent update failed — ${it.message}", NotificationType.ERROR)
                     }
-                }.onSuccess { r ->
-                    if (r.ok) notify("${m.name}: agent updating to ${release.version} (restarting)", NotificationType.INFORMATION)
-                    else notify("${m.name}: agent update rejected — ${r.error?.message ?: "unknown"}", NotificationType.ERROR)
-                }.onFailure {
-                    notify("${m.name}: agent update failed — ${it.message}", NotificationType.ERROR)
+                    clearDeployProgress(m.id)
                 }
-                clearDeployProgress(m.id)
+                refresh()
+            } finally {
+                _agentUpdating.value = false
             }
-            refresh()
         }
     }
 

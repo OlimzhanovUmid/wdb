@@ -91,7 +91,7 @@ private fun StatusDot(appState: String, hot: Boolean) {
 
 /** The per-machine / per-all action icons (design D7/D8). [single] non-null = act on that one machine. */
 @Composable
-private fun ActionRow(project: Project, service: WdbService, targets: List<MachineUi>, single: MachineUi?, agentRelease: ComponentRelease?) {
+private fun ActionRow(project: Project, service: WdbService, targets: List<MachineUi>, single: MachineUi?, agentRelease: ComponentRelease?, agentUpdating: Boolean) {
     val enabled = targets.isNotEmpty()
     // Derive update-availability from the passed-in (observed) manifest so the row recomposes when
     // it arrives after the machine list — a raw StateFlow.value read here would leave the button stale.
@@ -116,7 +116,7 @@ private fun ActionRow(project: Project, service: WdbService, targets: List<Machi
         // Agent update from the published release (change agent-github-pull): enabled only when a
         // strictly newer agent is available; acts on this machine, or all machines that need it.
         val anyUpdate = single?.let { updatable(it) } ?: targets.any { updatable(it) }
-        ActionIcon("Update agent", AllIconsKeys.Actions.Download, enabled && anyUpdate) {
+        ActionIcon(if (agentUpdating) "Updating agent…" else "Update agent", AllIconsKeys.Actions.Download, enabled && anyUpdate && !agentUpdating) {
             val victims = if (single != null) listOf(single) else targets.filter { updatable(it) }
             service.updateAgent(victims)
         }
@@ -152,6 +152,7 @@ fun WallUi(service: WdbService, project: Project) {
     val deployProgress by service.deployProgress.collectAsState()
     val deployInfo by service.deployInfo.collectAsState()
     val agentRelease by service.agentRelease.collectAsState()
+    val agentUpdating by service.agentUpdating.collectAsState()
     val dim = JewelTheme.globalColors.text.info
 
     Column(Modifier.fillMaxSize().padding(8.dp)) {
@@ -179,7 +180,7 @@ fun WallUi(service: WdbService, project: Project) {
             Divider(Orientation.Horizontal, Modifier.fillMaxWidth().padding(vertical = 6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("all", color = dim, modifier = Modifier.width(28.dp))
-                ActionRow(project, service, targets = machines, single = null, agentRelease = agentRelease)
+                ActionRow(project, service, targets = machines, single = null, agentRelease = agentRelease, agentUpdating = agentUpdating)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -218,7 +219,7 @@ fun WallUi(service: WdbService, project: Project) {
                             }
                         }
                         Divider(Orientation.Horizontal, Modifier.fillMaxWidth().padding(vertical = 6.dp))
-                        ActionRow(project, service, targets = listOf(m), single = m, agentRelease = agentRelease)
+                        ActionRow(project, service, targets = listOf(m), single = m, agentRelease = agentRelease, agentUpdating = agentUpdating)
                     }
                 }
             }
