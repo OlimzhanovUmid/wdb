@@ -24,3 +24,5 @@ build/
 
 ### IntelliJ Platform Gradle Plugin provisioning cache
 .intellijPlatform/
+# Inno Setup output (built by CI / local verify)
+scripts/wdb-agent-setup-*.exe

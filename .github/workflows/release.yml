@@ -72,6 +72,15 @@ jobs:
             -WdbVersion "${{ steps.ver.outputs.wdb }}" `
             -OutDir release-staging
 
+      - name: Build agent installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $agentVer = (Select-String -Path gradle.properties -Pattern '^wdbAgentVersion=(.+)$').Matches.Groups[1].Value.Trim()
+          choco install innosetup --no-progress -y
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAgentVersion=$agentVer scripts\wdb-agent.iss
+          # OutputDir=. in the .iss → scripts\wdb-agent-setup-<ver>.exe; publish it with the release.
+          Copy-Item "scripts\wdb-agent-setup-$agentVer.exe" "release-staging\" -Force
+
       - name: Extract release notes from CHANGELOG
         shell: bash
         run: |

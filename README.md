@@ -65,11 +65,13 @@ them over TCP.
 
 Grab prebuilt archives from [Releases](https://github.com/OlimzhanovUmid/wdb/releases/latest).
 
-**Agent** (on each Windows target machine):
+**Agent** (on each Windows target machine): run `wdb-agent-setup-<ver>.exe` — pick the install
+location and enter the machine name. It installs to `C:\ProgramData\wdb-agent`, autostarts on
+logon, appears in Apps & features, and self-updates in place. For mass deployment:
 ```powershell
-# unzip wdb-agent-installer-<ver>.zip, then:
-.\wdb-agent\install-agent.ps1 -Name <machine-name>
+wdb-agent-setup-<ver>.exe /VERYSILENT /SUPPRESSMSGBOXES /MACHINE=wall-04
 ```
+_(The older `install-agent.ps1` + `wdb-agent-installer-<ver>.zip` flow still works but is legacy.)_
 
 **CLI** (your machine): unzip `wdb-cli-<ver>.zip` and add `wdb-cli-<ver>/bin` to your `PATH`.
 
