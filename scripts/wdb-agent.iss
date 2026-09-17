@@ -25,7 +25,11 @@ DefaultDirName={commonappdata}\wdb-agent
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 OutputDir=.
+#ifdef Web
+OutputBaseFilename=wdb-agent-setup-web-{#AgentVersion}
+#else
 OutputBaseFilename=wdb-agent-setup-{#AgentVersion}
+#endif
 Compression=lzma2
 SolidCompression=yes
 Uninstallable=yes
@@ -35,7 +39,13 @@ WizardStyle=modern
 [Files]
 ; Place the app-image DIRECTLY into the versioned layout so launch.cmd / self-update find the exe at
 ; {app}\agent\versions\<ver>\wdb-agent.exe (no wrapper folder — that nesting broke self-update before).
+#ifdef Web
+; web variant: ship WITHOUT the bundled runtime (~322 MB) — download-jbr.ps1 fetches a JBR at install.
+Source: "{#AppImage}\*"; DestDir: "{app}\agent\versions\{#AgentVersion}"; Excludes: "runtime\*"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "download-jbr.ps1"; Flags: dontcopy
+#else
 Source: "{#AppImage}\*"; DestDir: "{app}\agent\versions\{#AgentVersion}"; Flags: recursesubdirs createallsubdirs ignoreversion
+#endif
 ; Bundled (not installed) — extracted to {tmp} and run pre-install to purge any previous agent.
 Source: "purge-old-agent.ps1"; Flags: dontcopy
 
@@ -120,4 +130,31 @@ begin
     '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}\purge-old-agent.ps1') + '"',
     '', SW_HIDE, ewWaitUntilTerminated, code);
   Result := '';
+end;
+
+#ifdef Web
+// web variant: after files are copied (runtime/ excluded), download + verify the pinned JBR into the
+// versioned runtime/ BEFORE the agent is wired up / started (the finalize step runs wdb-agent.exe,
+// which needs its runtime). Abort the install on failure — a runtime-less agent can't run.
+procedure DownloadJbr();
+var code: Integer;
+begin
+  ExtractTemporaryFile('download-jbr.ps1');
+  if (not Exec('powershell.exe',
+      '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}\download-jbr.ps1') + '"'
+      + ' -Url "{#JbrUrl}" -Sha256 "{#JbrSha256}"'
+      + ' -Dest "' + ExpandConstant('{app}\agent\versions\{#AgentVersion}\runtime') + '"',
+      '', SW_HIDE, ewWaitUntilTerminated, code)) or (code <> 0) then
+    RaiseException('Downloading the Java runtime (JBR) failed. Check the internet connection, or use the full installer (wdb-agent-setup-{#AgentVersion}.exe).');
+end;
+#endif
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+  begin
+#ifdef Web
+    DownloadJbr();
+#endif
+  end;
 end;

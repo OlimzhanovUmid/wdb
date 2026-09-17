@@ -65,9 +65,13 @@ them over TCP.
 
 Grab prebuilt archives from [Releases](https://github.com/OlimzhanovUmid/wdb/releases/latest).
 
-**Agent** (on each Windows target machine): run `wdb-agent-setup-<ver>.exe` — pick the install
-location and enter the machine name. It installs to `C:\ProgramData\wdb-agent`, autostarts on
-logon, appears in Apps & features, and self-updates in place. For mass deployment:
+**Agent** (on each Windows target machine): run the setup exe — pick the install location and enter
+the machine name. It installs to `C:\ProgramData\wdb-agent`, autostarts on logon, appears in Apps &
+features, and self-updates in place. Two variants:
+- `wdb-agent-setup-<ver>.exe` — **full**, bundles the Java runtime (~117 MB), installs offline.
+- `wdb-agent-setup-web-<ver>.exe` — **web**, ~13 MB, downloads the runtime at install (needs internet).
+
+For mass deployment:
 ```powershell
 wdb-agent-setup-<ver>.exe /VERYSILENT /SUPPRESSMSGBOXES /MACHINE=wall-04
 ```

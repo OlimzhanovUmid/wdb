@@ -72,14 +72,24 @@ jobs:
             -WdbVersion "${{ steps.ver.outputs.wdb }}" `
             -OutDir release-staging
 
-      - name: Build agent installer (Inno Setup)
+      - name: Build agent installers (Inno Setup)
         shell: pwsh
         run: |
           $agentVer = (Select-String -Path gradle.properties -Pattern '^wdbAgentVersion=(.+)$').Matches.Groups[1].Value.Trim()
+          $jbrUrl = (Select-String -Path gradle.properties -Pattern '^wdbJbrUrl=(.*)$').Matches.Groups[1].Value.Trim()
+          $jbrSha = (Select-String -Path gradle.properties -Pattern '^wdbJbrSha256=(.*)$').Matches.Groups[1].Value.Trim()
           choco install innosetup --no-progress -y
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAgentVersion=$agentVer scripts\wdb-agent.iss
-          # OutputDir=. in the .iss → scripts\wdb-agent-setup-<ver>.exe; publish it with the release.
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          # full: bundles the JBR runtime (offline, ~117 MB).
+          & $iscc /DAgentVersion=$agentVer scripts\wdb-agent.iss
           Copy-Item "scripts\wdb-agent-setup-$agentVer.exe" "release-staging\" -Force
+          # web: ships without the runtime (~13 MB) and downloads the pinned JBR at install time.
+          if ($jbrUrl -and $jbrSha) {
+            & $iscc /DAgentVersion=$agentVer /DWeb /DJbrUrl="$jbrUrl" /DJbrSha256="$jbrSha" scripts\wdb-agent.iss
+            Copy-Item "scripts\wdb-agent-setup-web-$agentVer.exe" "release-staging\" -Force
+          } else {
+            Write-Host "wdbJbrUrl/wdbJbrSha256 not set in gradle.properties — skipping the web installer"
+          }
 
       - name: Extract release notes from CHANGELOG
         shell: bash
