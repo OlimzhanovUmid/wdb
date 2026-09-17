@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows Semantic
 Versioning (pre-1.0, so minor versions may include breaking changes).
 
+## [0.1.3]
+
+### Added
+- Windows agent installer (`wdb-agent-setup-<ver>.exe`): a single-exe Inno Setup installer that
+  installs to `C:\ProgramData\wdb-agent`, autostarts on logon, appears in Apps & features with a
+  working uninstaller, supports silent/unattended install (`/VERYSILENT /MACHINE=...`), and removes
+  any previous agent first. Replaces the manual zip + PowerShell flow (now legacy).
+- Two installer variants: **full** (bundles the Java runtime, ~117 MB, installs offline) and **web**
+  (`wdb-agent-setup-web-<ver>.exe`, ~13 MB, downloads a pinned JetBrains Runtime at install time).
+- A wdb icon on the installer and its Apps & features entry.
+
+### Changed
+- Agent install refactored: the installer lays down the app-image and runs a lightweight `finalize`
+  step (no double copy); `uninstall` now stops the running agent before removing the task, firewall,
+  and files.
+
 ## [0.1.2]
 
 ### Fixed
