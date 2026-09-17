@@ -11,6 +11,7 @@
 - [x] 2.3 `[Run]` invokes `wdb-agent.exe finalize --name {code:Machine} [--user {code:RunUser}]` post-copy; support silent params `/MACHINE=` `/DIR=` `/RUNUSER=` (`{param:...}`). Verify interactive + `/VERYSILENT /MACHINE=...` both install + start the agent.
 - [x] 2.4 Pre-install purge (`[Code]`): stop any running `wdb-agent.exe`, `schtasks /delete /tn wdb-agent /f`, `netsh ... delete rule name=wdb-agent`; best-effort remove the old base by reading the existing task action. Verify installing over an old ad-hoc install leaves exactly one agent.
 - [x] 2.5 `[UninstallRun]` runs `wdb-agent.exe uninstall` before file removal; uninstall also removes `{app}` (runtime `agent\versions\` + data). Verify the OS installed-apps entry appears and uninstalling it leaves no task/firewall/dir/entry.
+- [x] 2.6 wdb icon: `scripts/wdb.ico` (multi-res, generated from the bridge mark by `scripts/gen-wdb-ico.ps1` via GDI+ — no external tools) wired as `SetupIconFile` (setup exe + wizard) and `UninstallDisplayIcon` (Apps & features). VERIFIED: iscc accepts the ICO ("Updating icons"), both variants compile.
 
 ## 3. CI + distribution
 

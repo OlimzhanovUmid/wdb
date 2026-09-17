@@ -35,6 +35,9 @@ SolidCompression=yes
 Uninstallable=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 WizardStyle=modern
+; wdb bridge icon: the setup exe + the wizard, and the Apps & features entry (UninstallDisplayIcon).
+SetupIconFile=wdb.ico
+UninstallDisplayIcon={app}\wdb.ico
 
 [Files]
 ; Place the app-image DIRECTLY into the versioned layout so launch.cmd / self-update find the exe at
@@ -46,6 +49,8 @@ Source: "download-jbr.ps1"; Flags: dontcopy
 #else
 Source: "{#AppImage}\*"; DestDir: "{app}\agent\versions\{#AgentVersion}"; Flags: recursesubdirs createallsubdirs ignoreversion
 #endif
+; Installed so the Apps & features entry (UninstallDisplayIcon) shows the wdb icon.
+Source: "wdb.ico"; DestDir: "{app}"; Flags: ignoreversion
 ; Bundled (not installed) — extracted to {tmp} and run pre-install to purge any previous agent.
 Source: "purge-old-agent.ps1"; Flags: dontcopy
 
