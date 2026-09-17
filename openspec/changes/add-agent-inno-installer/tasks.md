@@ -26,7 +26,7 @@
 
 ## 6. Web installer variant (D9)
 
-- [x] 6.1 `scripts/download-jbr.ps1`: download a pinned JBR (`-Url -Sha256 -Dest`), verify sha256, extract its contents into the versioned `runtime/` (handles the archive's wrapper dir), sanity-check `bin\java.exe`; fail loudly. VERIFIED LIVE: run against the real pin → downloaded, sha matched, `runtime\bin\java.exe` = working JBR `openjdk 21.0.11`.
+- [x] 6.1 JBR fetch for the web variant: **download + sha256 verify via Inno's built-in `CreateDownloadPage`/`DownloadTemporaryFile`** (real progress bar + speed), then `scripts/extract-jbr.ps1` unpacks the archive into the versioned `runtime/` (handles the wrapper dir, sanity-checks `bin\java.exe`), fail loudly. VERIFIED LIVE (earlier, single-script form): downloaded the real pin, sha matched, `runtime\bin\java.exe` = working JBR `openjdk 21.0.11`. Download/extract now split so Inno shows native progress.
 - [x] 6.2 `.iss` `#ifdef Web`: exclude `runtime\*`, bundle `download-jbr.ps1`, run it in `CurStepChanged(ssPostInstall)` before finalize/start; output `wdb-agent-setup-web-<ver>.exe`. VERIFIED locally: `iscc` compiles both — full 117 MB, web 13 MB.
 - [x] 6.3 `gradle.properties` `wdbJbrUrl`/`wdbJbrSha256` pin; `release.yml` builds full always + web when the pin is set. Verified: YAML parses.
 - [~] 6.4 Fill the JBR pin (`wdbJbrUrl`+`wdbJbrSha256`) with a known-good JBR 21 windows-x64, then live: run the web installer on a connected box → downloads + verifies the JBR, lays out `runtime/`, agent runs. (Offline box → clear error, use full.) — PIN FILLED (jbr-21.0.11-windows-x64-b1163.116, sha verified); the download half is verified live (6.1). Remaining: run the actual web setup.exe on a machine (Inno orchestration).

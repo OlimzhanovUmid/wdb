@@ -45,7 +45,7 @@ UninstallDisplayIcon={app}\wdb.ico
 #ifdef Web
 ; web variant: ship WITHOUT the bundled runtime (~322 MB) — download-jbr.ps1 fetches a JBR at install.
 Source: "{#AppImage}\*"; DestDir: "{app}\agent\versions\{#AgentVersion}"; Excludes: "runtime\*"; Flags: recursesubdirs createallsubdirs ignoreversion
-Source: "download-jbr.ps1"; Flags: dontcopy
+Source: "extract-jbr.ps1"; Flags: dontcopy
 #else
 Source: "{#AppImage}\*"; DestDir: "{app}\agent\versions\{#AgentVersion}"; Flags: recursesubdirs createallsubdirs ignoreversion
 #endif
@@ -76,6 +76,9 @@ Type: dirifempty; Name: "{app}"
 [Code]
 var
   ProvisionPage: TInputQueryWizardPage;
+#ifdef Web
+  DownloadPage: TDownloadWizardPage;
+#endif
 
 // The machine name: silent /MACHINE=, else the wizard field, else the computer name.
 function MachineName(Param: String): String;
@@ -122,11 +125,19 @@ begin
   ProvisionPage.Add('Machine name (e.g. wall-04):', False);
   ProvisionPage.Add('Run as user (kiosk auto-login user; blank = current user):', False);
   ProvisionPage.Values[0] := ExpandConstant('{computername}');
+#ifdef Web
+  // Real download progress (+ sha256 verify) via Inno's built-in download page.
+  DownloadPage := CreateDownloadPage('Java runtime', 'Downloading the JetBrains Runtime the agent needs...', nil);
+#endif
 end;
 
 // Pre-install: purge ANY previous agent (stop process, remove task + firewall by fixed name, delete
 // the old install base found from the task's launch.cmd path) so re-install/migration is clean and
 // idempotent. Delegated to the bundled purge-old-agent.ps1 (best-effort; never blocks the install).
+// Pre-install: purge any previous agent (best-effort), then — for the web variant — download the
+// JBR with a real progress page (Inno also sha256-verifies it). Extraction into the versioned
+// runtime/ happens post-install (CurStepChanged), once [Files] has created that directory. A
+// download failure returns a non-empty string, which aborts the install with that message.
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var code: Integer;
 begin
@@ -135,22 +146,36 @@ begin
     '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}\purge-old-agent.ps1') + '"',
     '', SW_HIDE, ewWaitUntilTerminated, code);
   Result := '';
+#ifdef Web
+  DownloadPage.Clear;
+  DownloadPage.Add('{#JbrUrl}', 'jbr.tar.gz', '{#JbrSha256}');   // 3rd arg: expected sha256, verified by Inno
+  DownloadPage.Show;
+  try
+    try
+      DownloadPage.Download;   // shows progress + speed; raises on network error or sha mismatch
+    except
+      Result := 'Downloading the Java runtime (JBR) failed: ' + GetExceptionMessage + #13#10
+        + 'Check the internet connection, or use the full installer (wdb-agent-setup-{#AgentVersion}.exe).';
+    end;
+  finally
+    DownloadPage.Hide;
+  end;
+#endif
 end;
 
 #ifdef Web
-// web variant: after files are copied (runtime/ excluded), download + verify the pinned JBR into the
-// versioned runtime/ BEFORE the agent is wired up / started (the finalize step runs wdb-agent.exe,
-// which needs its runtime). Abort the install on failure — a runtime-less agent can't run.
-procedure DownloadJbr();
+// Post-install (runtime/ dir now exists): unpack the downloaded JBR into it BEFORE the finalize
+// [Run] executes wdb-agent.exe (which needs its runtime). Abort on failure.
+procedure ExtractJbr();
 var code: Integer;
 begin
-  ExtractTemporaryFile('download-jbr.ps1');
+  ExtractTemporaryFile('extract-jbr.ps1');
   if (not Exec('powershell.exe',
-      '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}\download-jbr.ps1') + '"'
-      + ' -Url "{#JbrUrl}" -Sha256 "{#JbrSha256}"'
+      '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}\extract-jbr.ps1') + '"'
+      + ' -Archive "' + ExpandConstant('{tmp}\jbr.tar.gz') + '"'
       + ' -Dest "' + ExpandConstant('{app}\agent\versions\{#AgentVersion}\runtime') + '"',
       '', SW_HIDE, ewWaitUntilTerminated, code)) or (code <> 0) then
-    RaiseException('Downloading the Java runtime (JBR) failed. Check the internet connection, or use the full installer (wdb-agent-setup-{#AgentVersion}.exe).');
+    RaiseException('Extracting the Java runtime (JBR) failed.');
 end;
 #endif
 
@@ -159,7 +184,7 @@ begin
   if CurStep = ssPostInstall then
   begin
 #ifdef Web
-    DownloadJbr();
+    ExtractJbr();
 #endif
   end;
 end;
