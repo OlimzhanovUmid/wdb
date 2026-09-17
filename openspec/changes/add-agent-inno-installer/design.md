@@ -43,6 +43,9 @@ Inno auto-creates the installed-apps entry + `unins000.exe`. On uninstall: `[Uni
 **D8 — Self-update asset unchanged.**
 The installer bundles the app-image for first install; self-update still downloads the **raw app-image zip** (today's fix). Both consistent; no change to the self-update wire/asset.
 
+**D9 — Two installer variants: full (bundled runtime) and web (downloads JBR).**
+The app-image is 336 MB; `runtime/` (the JBR) is 322 MB of it (`app/` jars are ~13 MB). So a `#ifdef Web` build of the *same* `.iss` that excludes `runtime\*` is ~13 MB. The web installer downloads a **pinned JBR 21 windows-x64** at install time (`scripts/download-jbr.ps1`, verified by sha256) and lays its contents into the versioned `runtime/` — a full JBR JDK image is a drop-in for jpackage's bundled runtime (same layout, all modules; the agent needs JBR specifically for CHR/devtools, not a generic JDK). The download runs in `CurStepChanged(ssPostInstall)` *before* the finalize `[Run]` (which executes `wdb-agent.exe`, so the runtime must already be present); failure aborts the install (a runtime-less agent can't run). The JBR pin (`wdbJbrUrl`/`wdbJbrSha256`) lives in `gradle.properties`; CI builds full always and web when the pin is set, publishing both. **full** = offline/isolated kiosks; **web** = tiny installer offloading ~90 MB to JetBrains' CDN for connected machines. Self-update is unaffected (its raw zip always carries the runtime), so a web-installed agent gains a bundled runtime on its first self-update anyway — web only shrinks the *first* download.
+
 ## Risks / Trade-offs
 
 - **Elevation flips `%LOCALAPPDATA%`** → use ProgramData (fixed path), not LocalAppData (D2).

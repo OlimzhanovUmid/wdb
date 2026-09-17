@@ -22,3 +22,10 @@
 - [ ] 4.1 Live on the kiosk: run the new setup over the existing `Documents\...` install → it purges the old agent, installs to `C:\ProgramData\wdb-agent`, appears in Apps & features, agent runs + announces as the given name. Then push a self-update → confirm it writes under ProgramData and the new version boots (no revert). Then uninstall from Apps & features → nothing left behind.
 - [ ] 4.2 Silent install on a second box: `wdb-agent-setup-<ver>.exe /VERYSILENT /MACHINE=wall-05` → installs + starts with no prompts.
 - [x] 4.3 Run `openspec validate add-agent-inno-installer --strict` and `./gradlew :wdb-agent:build`; both pass.
+
+## 6. Web installer variant (D9)
+
+- [x] 6.1 `scripts/download-jbr.ps1`: download a pinned JBR (`-Url -Sha256 -Dest`), verify sha256, extract its contents into the versioned `runtime/` (handles the archive's wrapper dir), sanity-check `bin\java.exe`; fail loudly. Verified: compiles into the web installer.
+- [x] 6.2 `.iss` `#ifdef Web`: exclude `runtime\*`, bundle `download-jbr.ps1`, run it in `CurStepChanged(ssPostInstall)` before finalize/start; output `wdb-agent-setup-web-<ver>.exe`. VERIFIED locally: `iscc` compiles both — full 117 MB, web 13 MB.
+- [x] 6.3 `gradle.properties` `wdbJbrUrl`/`wdbJbrSha256` pin; `release.yml` builds full always + web when the pin is set. Verified: YAML parses.
+- [ ] 6.4 Fill the JBR pin (`wdbJbrUrl`+`wdbJbrSha256`) with a known-good JBR 21 windows-x64, then live: run the web installer on a connected box → downloads + verifies the JBR, lays out `runtime/`, agent runs. (Offline box → clear error, use full.)
